@@ -1,0 +1,54 @@
+properties([[$class: 'BuildDiscarderProperty', strategy: [$class: 'LogRotator', numToKeepStr: '20']]])
+pipeline {
+    agent { label 'slave-golang' }
+    options {
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage ('Clone') {
+            steps {
+                git branch: 'master', url: "https://github.com/jfrog/project-examples.git"
+            }
+        }
+
+        stage ('Artifactory server') {
+            steps {
+                rtServer (
+                    id: "ARTIFACTORY_SERVER",
+                    url: "https://x.x.x.x.com/artifactory",
+                    credentialsId: "artifactory_user"
+                )
+            }
+        }
+
+        stage('Compile go packages') {
+            steps {
+                sh 'ls -lrt'
+                sh '/usr/local/go/bin/go version'
+                sh '/usr/local/go/bin/go build'
+            }
+        }
+        stage('Run tests') {
+            steps {
+                sh '/usr/local/go/bin/go test'
+            }
+        }
+
+        stage ('Exec Go publish') {
+            steps {
+                rtUpload (
+                    serverId: 'ARTIFACTORY_SERVER',
+                    spec: """{
+                            "files": [
+                                    {
+                                        "pattern": "package_name*",
+                                        "target": "artifactory_repo"
+                                    }
+                                ]
+                            }"""
+                )
+            }
+        }        
+    }
+}
